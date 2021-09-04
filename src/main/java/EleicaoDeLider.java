@@ -2,6 +2,7 @@ import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
 import static org.apache.zookeeper.Watcher.Event.EventType.None;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -16,7 +17,7 @@ public class EleicaoDeLider {
     private String nomeDoZNodeDesseProcesso;
     private ZooKeeper zooKeeper;
 
-    public void realizarCandidatura () throws InterruptedException, KeeperException {
+    public void realizarCandidatura() throws InterruptedException, KeeperException {
         String prefixo = String.format("%s/cand_", NAMESPACE_ELEICAO);
         String pathInteiro = zooKeeper.create(prefixo, new byte[]{}, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
         this.nomeDoZNodeDesseProcesso = pathInteiro.replace(String.format("%s/", NAMESPACE_ELEICAO), "");
@@ -29,78 +30,70 @@ public class EleicaoDeLider {
         eleicaoDeLider.conectar();
         eleicaoDeLider.realizarCandidatura();
         eleicaoDeLider.elegerOLider();
-        eleicaoDeLider.registrarWatcher();
+        //eleicaoDeLider.registrarWatcher();
         eleicaoDeLider.executar();
         eleicaoDeLider.fechar();
     }
 
-    private class TesteWatcher implements Watcher{
-        @Override
-        public void process(WatchedEvent event) {
-            System.out.println(event);
-            switch(event.getType()){
-                case NodeCreated:
-                    System.out.println("ZNode criado");
-                    break;
+    //expressão lambda
+    private Watcher reeleicaoWatcher = (event) -> {
+        try{
+            switch (event.getType()){
                 case NodeDeleted:
-                    System.out.println("ZNode removido");
-                    break;
+                //lider pode ser se tornado inoperante.
+                //Nova eleição
+                break;
             }
         }
-    }
-
-    public void registrarWatcher() throws InterruptedException, KeeperException {
-        TesteWatcher watcher = new TesteWatcher();
-        Stat stat = zooKeeper.exists(ZNODE_TESTE_WATCH, watcher);
-        //znode existe
-        if (stat != null){
-
+        catch (Exception e){
+            e.printStackTrace();
         }
-    }
+    };
 
-    public void fechar () throws InterruptedException{
+
+
+    public void fechar() throws InterruptedException {
         zooKeeper.close();
     }
 
-    public void executar () throws InterruptedException{
-        synchronized (zooKeeper){
+    public void executar() throws InterruptedException {
+        synchronized (zooKeeper) {
             zooKeeper.wait();
         }
     }
 
-    public void elegerOLider () throws InterruptedException, KeeperException {
+
+    public void elegerOLider() throws InterruptedException, KeeperException {
         //obter a lista de filhos do ZNode /eleicao
         //usar o zooKeeper
-        List <String> filhos = zooKeeper.getChildren(NAMESPACE_ELEICAO, false);
+        List<String> filhos = zooKeeper.getChildren(NAMESPACE_ELEICAO, false);
         //ordenar a lista de filhos
         Collections.sort(filhos);
         //Verificar o primeiro da lista é igual ao atual nomeDoZNodeDesseProcesso
         //se for, declarar-se lider. Caso contrário, dizer quem é o lider
         String lider = filhos.get(0);
-        if (lider.equals(nomeDoZNodeDesseProcesso)){
+        if (lider.equals(nomeDoZNodeDesseProcesso)) {
             System.out.printf("Me chamo %s e sou o líder.\n", nomeDoZNodeDesseProcesso);
-        }
-        else{
+        } else {
             System.out.printf("Não sou o líder. O líder é o %s.\n", lider);
         }
 
 
     }
 
-    public void conectar () throws IOException {
+    public void conectar() throws IOException {
         zooKeeper = new ZooKeeper(
                 String.format("%s:%s", HOST, PORTA),
                 TIMEOUT,
                 evento -> {
-                    if (evento.getType() == None){
-                        if (evento.getState() == Watcher.Event.KeeperState.SyncConnected){
+                    if (evento.getType() == None) {
+                        if (evento.getState() == Watcher.Event.KeeperState.SyncConnected) {
                             System.out.println("Tratando evento: " + Thread.currentThread().getName());
-                            System.out.println ("Conectou");
-                        }
-                        else if (evento.getState() == Watcher.Event.KeeperState.Disconnected){
-                            synchronized (zooKeeper){
-                                System.out.println ("Desconectou");
-                                System.out.println ("Estamos na thread: " + Thread.currentThread().getName());
+                            System.out.println("Conectou");
+                        } else if (evento.getState() == Watcher.Event.KeeperState.Disconnected) {
+                            synchronized (zooKeeper) {
+                                System.out.println("Desconectou");
+                                System.out.println("Estamos na thread: " + Thread.currentThread().getName());
                                 zooKeeper.notify();
                             }
                         }
@@ -109,3 +102,83 @@ public class EleicaoDeLider {
         );
     }
 }
+//    private class TesteWatcher implements Watcher {
+//        @Override
+//        public void process(WatchedEvent event) {
+//            System.out.println(event);
+//            switch (event.getType()) {
+//                case NodeCreated:
+//                    System.out.println("ZNode criado");
+//                    break;
+//                case NodeDeleted:
+//                    System.out.println("ZNode removido");
+//                    break;
+//                case NodeDataChanged:
+//                    System.out.println("Dados do ZNode alterados");
+//                    break;
+//                case NodeChildrenChanged:
+//                    System.out.println("Evento envolvendo os filhos");
+//            }
+//            try {
+//                registrarWatcher();
+//            } catch (Exception e) {
+//                System.out.println(e.getMessage());
+//            }
+//
+//        }
+//    }
+
+//    public void registrarWatcher() throws InterruptedException, KeeperException {
+//
+//        TesteWatcher watcher = new TesteWatcher();
+//        Stat stat = zooKeeper.exists(ZNODE_TESTE_WATCH, watcher);
+//        //znode existe
+//        if (stat != null) {
+//            byte[] bytes = zooKeeper.getData(ZNODE_TESTE_WATCH, watcher, stat);
+//            String dados = bytes != null ? new String(bytes) : "";
+//            System.out.printf("Dados: %s\n", dados);
+//            List<String> filhos = zooKeeper.getChildren(ZNODE_TESTE_WATCH, watcher);
+//            System.out.println("Filhos: " + filhos);
+//        }
+//    }
+//    private class TesteWatcher implements Watcher{
+//
+//        @Override
+//        public void process(WatchedEvent event) {
+//            System.out.println(event);
+//            try{
+//                switch (event.getType()){
+//                    case NodeCreated:
+//                        System.out.println ("ZNode criado");
+//                        break;
+//                    case NodeDeleted:
+//                        System.out.println ("ZNode removido");
+//                        break;
+//                    case NodeDataChanged:
+//                        System.out.println ("Dados do ZNode alterados");
+//                        Stat stat = zooKeeper.exists(ZNODE_TESTE_WATCH, false);
+//                        byte [] bytes = zooKeeper.getData(ZNODE_TESTE_WATCH, false, stat);
+//                        String dados = bytes != null ? new String (bytes) : "";
+//                        System.out.println ("Dados: " + dados);
+//                        break;
+//                        //não vai acontecer mais
+//                    case NodeChildrenChanged:
+//                        System.out.println ("Não deveria acontecer...filhos alterados.");
+//                        break;
+//                }
+//            }
+//            catch (Exception e){
+//                e.printStackTrace();
+//            }
+//        }
+//    }
+//
+//    public void registrarWatcher (){
+//        TesteWatcher watcher = new TesteWatcher();
+//        try{
+//            zooKeeper.addWatch(ZNODE_TESTE_WATCH, watcher, AddWatchMode.PERSISTENT_RECURSIVE);
+//        }
+//        catch (Exception e){
+//            e.printStackTrace();
+//        }
+//    }
