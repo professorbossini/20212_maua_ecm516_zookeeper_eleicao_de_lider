@@ -24,12 +24,15 @@ public class EleicaoDeLider {
         System.out.println(this.nomeDoZNodeDesseProcesso);
     }
 
+
     public static void main(String[] args) throws IOException, InterruptedException, KeeperException {
+
         System.out.println("Método main: " + Thread.currentThread().getName());
         EleicaoDeLider eleicaoDeLider = new EleicaoDeLider();
         eleicaoDeLider.conectar();
         eleicaoDeLider.realizarCandidatura();
-        eleicaoDeLider.elegerOLider();
+        eleicaoDeLider.eleicaoEReeleicao();
+//        eleicaoDeLider.elegerOLider();
         //eleicaoDeLider.registrarWatcher();
         eleicaoDeLider.executar();
         eleicaoDeLider.fechar();
@@ -42,6 +45,7 @@ public class EleicaoDeLider {
                 case NodeDeleted:
                 //lider pode ser se tornado inoperante.
                 //Nova eleição
+                    eleicaoEReeleicao();
                 break;
             }
         }
@@ -61,6 +65,30 @@ public class EleicaoDeLider {
             zooKeeper.wait();
         }
     }
+
+    public void eleicaoEReeleicao() throws InterruptedException, KeeperException{
+        Stat statPredecessor = null;
+        String nomePredecessor = "";
+        do{
+            List <String> candidatos = zooKeeper.getChildren(NAMESPACE_ELEICAO, false);
+            Collections.sort(candidatos);
+            String oMenor = candidatos.get(0);
+            if (oMenor.equals(nomeDoZNodeDesseProcesso)){
+                System.out.printf ("Me chamo %s e sou o líder.\n", nomeDoZNodeDesseProcesso);
+                return;
+            }
+            System.out.printf ("Me chamo %s e não sou o líder. O líder é o %s\n", nomeDoZNodeDesseProcesso, oMenor);
+            int indicePredecessor = Collections.binarySearch(candidatos, nomeDoZNodeDesseProcesso) - 1;
+            nomePredecessor = candidatos.get(indicePredecessor);
+            statPredecessor = zooKeeper.exists(
+                    String.format("%s/%s", NAMESPACE_ELEICAO, nomePredecessor),
+                    reeleicaoWatcher
+            );
+        }while (statPredecessor == null);
+        System.out.printf ("Estou observando o %s\n", nomePredecessor);
+    }
+
+
 
 
     public void elegerOLider() throws InterruptedException, KeeperException {
